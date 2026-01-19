@@ -1,45 +1,39 @@
-import os
+from fastapi import FastAPI, Depends
+from typing import Optional
+from fastapi.exceptions import HTTPException
+from routers import users
+from dependencies.auth import get_current_user
 
-# from dotenv import load_dotenv
-from sqlalchemy import create_engine
-from models.article_comment_onetomany import Article, Comment
-from sqlalchemy.orm import sessionmaker
+app = FastAPI()
 
-from models.article_comment_onetomany import Base
+app.include_router(users.router, prefix="/users")
 
-# load_dotenv()
+# Dependency function
+def get_query_param(q: Optional[str] = None):
+    return q
 
-# Read DB_USER and DB_PASS from environment variables
-# DB_USER = os.getenv("DB_USER", "postgres")
-# DB_PASS = os.getenv("DB_PASS", "postgres")
-# print(f"DB_USER: {DB_USER}, DB_PASS: {DB_PASS}")
+# Endpoint using the dependency
+@app.get("/search")
+def search(query: str = Depends(get_query_param)):
+    if query:
+        return {"query": query}
+    return HTTPException(status_code=400, detail="Query parameter is required")
 
-SQLALCHEMY_DATABASE_URL = 'sqlite:///./test.db'
-# SQLALCHEMY_DATABASE_URL = f'postgresql://{DB_USER}:{DB_PASS}@localhost/fastapi_week4'
+def get_fake_db():
+    print("Opening DB")
+    try:
+        yield {"users": ["Alice", "Bob", "Charlie"]}
+    finally:
+        print("Closing DB")
 
-# Create the SQLAlchemy engine
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+@app.get("/users")
+def read_users(db: dict = Depends(get_fake_db)):
+    return {"users": db["users"]}
 
-# Create session
-Session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+@app.get("/profile")
+def read_profile(user: str = Depends(get_current_user)):
+    return {"user": user}
 
-# Create tables
-Base.metadata.create_all(bind=engine)
-
-session = Session()
-
-with session as session:
-    article = Article(title="Sample Article")
-    comment1 = Comment(content="This is the first comment.")
-    comment2 = Comment(content="This is the second comment.")
-    article.comments = [comment1, comment2]
-    session.add(article)
-    session.commit()
-
-
-# Query the article and its comments
-with Session() as session:
-    article = session.query(Article).first()
-    print(f"Article ID: {article.id}, Number of Comments: {len(article.comments)}")
-    for comment in article.comments:
-        print(f"Comment ID: {comment.id}")
+# befejezni module 5 és próbáljuk ki egy rendes adatbázissal, postgres
+# elég a module 4 postgresre !!!
+# megnézni szerdára a frontendet
